@@ -28,6 +28,7 @@ async function run() {
 
     const menuCOllection = client.db("bistroDB").collection("menu");
     const reviewCOllection = client.db("bistroDB").collection("reviews");
+    const cartCOllection = client.db("bistroDB").collection("carts");
 
     app.get('/menu',async(req,res)=>{
         const result = await menuCOllection.find().toArray();
@@ -37,6 +38,12 @@ async function run() {
     app.get('/reviews',async(req,res)=>{
         const result = await reviewCOllection.find().toArray();
         res.send(result);
+    })
+
+    app.post('/users', async(req,res)=>{
+      const cartItem = req.body;
+      const result = await cartCOllection.insertOne(cartItem);
+      res.send(result);
     })
 
     // Send a ping to confirm a successful connection

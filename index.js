@@ -137,10 +137,10 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('/menu/:id',async(req,res)=>{
+    app.patch('/menu/:id', async (req, res) => {
       const item = req.body;
       const id = req.params.id;
-      const filter = {_id: new ObjectId(id)}
+      const filter = { _id: new ObjectId(id) }
       const updateDoc = {
         $set: {
           name: item.name,
@@ -150,7 +150,7 @@ async function run() {
           image: item.image
         }
       }
-      const result = await menuCOllection.updateOne(filter,updateDoc);
+      const result = await menuCOllection.updateOne(filter, updateDoc);
       res.send(result);
     })
 
@@ -188,9 +188,9 @@ async function run() {
     })
 
     // Payment
-    app.post("/create-payment-intent",async(req,res)=>{
-      const {price} = req.body;
-      const amount = parseInt(price*100);
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amount,
         currency: 'usd',
@@ -201,25 +201,58 @@ async function run() {
       })
     })
 
-    app.get('/payments/:email',verifyToken,async(req,res)=>{
-      const query = {email: req.params.email};
-      if(req.params.email !== req.decoded.email){
-        return res.status(403).send({message: 'forbidden access'});
+    app.get('/payments/:email', verifyToken, async (req, res) => {
+      const query = { email: req.params.email };
+      if (req.params.email !== req.decoded.email) {
+        return res.status(403).send({ message: 'forbidden access' });
       }
       const result = await paymentCOllection.find(query).toArray();
       res.send(result)
     })
 
-    app.post('/payments',async(req,res)=>{
+    app.post('/payments', async (req, res) => {
       const payment = req.body;
       const paymentResult = await paymentCOllection.insertOne(payment)
 
       // carefully delete each item from the cart
-      const query = {_id: {
-        $in: payment.cartIds.map(id=> new ObjectId(id))
-      }}
+      const query = {
+        _id: {
+          $in: payment.cartIds.map(id => new ObjectId(id))
+        }
+      }
       const deleteResult = await cartCOllection.deleteMany(query)
-      res.send({paymentResult, deleteResult});
+      res.send({ paymentResult, deleteResult });
+    })
+
+    // stats or analytics
+    app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
+      const users = await userCOllection.estimatedDocumentCount();
+      const menuItems = await menuCOllection.estimatedDocumentCount();
+      const orders = await paymentCOllection.estimatedDocumentCount();
+
+      // This is not the best way
+      // const payments = await paymentCOllection.find().toArray();
+      // const revenue = payments.reduce((total, payment) => total + payment.price, 0)
+
+      // The best way
+      const result = await paymentCOllection.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalRevenue: {
+              $sum: '$price'
+            }
+          }
+        }
+      ]).toArray();
+      const revenue = result.length > 0 ? result[0].totalRevenue : 0;
+
+      res.send({
+        users,
+        menuItems,
+        orders,
+        revenue
+      })
     })
 
     // Send a ping to confirm a successful connection
